@@ -22,8 +22,9 @@
     <ClCompile Include="src\Main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\string.h" />
-    <ClInclude Include="include\vector.h" />
+    <ClInclude Include="include\kstring.h" />
+    <ClInclude Include="include\kmemory.h" />
+    <ClInclude Include="include\kvector.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

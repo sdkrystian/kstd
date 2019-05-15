@@ -20,10 +20,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\vector.h">
+    <ClInclude Include="include\kstring.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\string.h">
+    <ClInclude Include="include\kmemory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\kvector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
