@@ -14,7 +14,7 @@ namespace kstd
     {
       if constexpr (std::is_trivial_v<T>)
         return static_cast<T*>(std::memcpy(d_first, first, (last - first) * sizeof(T)));
-      else if (std::is_nothrow_move_constructible_v<T>)
+      else if constexpr(std::is_nothrow_move_constructible_v<T>)
         return std::uninitialized_move(first, last, d_first);
       else
         return std::uninitialized_copy(first, last, d_first);
@@ -25,10 +25,21 @@ namespace kstd
     {
       if constexpr (std::is_trivial_v<T>)
         return static_cast<T*>(std::memcpy(d_first, first, (last - first) * sizeof(T)));
-      else if (std::is_nothrow_move_constructible_v<T>)
+      else if constexpr (std::is_nothrow_move_constructible_v<T>)
         return std::move(first, last, d_first);
       else
         return std::copy(first, last, d_first);
+    }
+
+    template<typename T, typename U>
+    T* move_range_optimal_backward(T* first, T* last, U* d_first) // pointers so it works with memcpy
+    {
+      if constexpr (std::is_trivial_v<T>)
+        return static_cast<T*>(std::memmove(d_first, first, (last - first) * sizeof(T)));
+      else if constexpr (std::is_nothrow_move_constructible_v<T>)
+        return std::move_backward(first, last, d_first);
+      else
+        return std::copy_backward(first, last, d_first);
     }
 
     template<typename T, typename = void>
@@ -272,8 +283,8 @@ namespace kstd
       size_type emplaced_pos = pos - begin();
       if (!reserve_insert(size_ + 1, emplaced_pos, 1) && emplaced_pos < size_)
       {
-        detail::uninitialized_move_range_optimal(data_ + size_ - 1, data_ + size_, data_ + size_ + 1);
-        detail::move_range_optimal(data_ + emplaced_pos, data_ + size_ - 1, data_ + emplaced_pos + 1);
+        detail::uninitialized_move_range_optimal(data_ + size_ - 1, data_ + size_, data_ + size_);
+        detail::move_range_optimal_backward(data_ + emplaced_pos, data_ + size_ - 1, data_ + emplaced_pos + 1);
         *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
       }
       else
@@ -285,6 +296,24 @@ namespace kstd
     }
 
   private:
+    /*template<class... Args>
+    iterator emplace_range(const_iterator pos,  Args&&... args)
+    {
+      size_type emplaced_pos = pos - begin();
+      if (!reserve_insert(size_ + 1, emplaced_pos, 1) && emplaced_pos < size_)
+      {
+        detail::uninitialized_move_range_optimal(data_ + size_ - 1, data_ + size_, data_ + size_);
+        detail::move_range_optimal_backward(data_ + emplaced_pos, data_ + size_ - 1, data_ + emplaced_pos + 1);
+        *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
+      }
+      else
+      {
+        new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
+      }
+      ++size_;
+      return data_ + emplaced_pos;
+    }*/
+
     bool reserve_insert(size_type cap, size_type pos, int count)
     {
       return reserve_offset(cap, pos, count);
