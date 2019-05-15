@@ -7,40 +7,65 @@
 
 namespace kstd
 {
-  template<typename T, typename = void>
-  struct allocator_base
+  namespace detail
   {
-  public:
-    T get_allocator() const noexcept
+    template<typename T, typename U>
+    T* uninitialized_move_range_optimal(T* first, T* last, U* d_first) // pointers so it works with memcpy
     {
-      return allocator_;
+      if constexpr (std::is_trivial_v<T>)
+        return static_cast<T*>(std::memcpy(d_first, first, (last - first) * sizeof(T)));
+      else if (std::is_nothrow_move_constructible_v<T>)
+        return std::uninitialized_move(first, last, d_first);
+      else
+        return std::uninitialized_copy(first, last, d_first);
     }
-  protected:
-    T& allocator() noexcept
-    {
-      return allocator_;
-    }
-  private:
-    T allocator_;
-  };
 
-  template<typename T>
-  struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : T
-  {
-  public:
-    T get_allocator() const noexcept
+    template<typename T, typename U>
+    T* move_range_optimal(T* first, T* last, U* d_first) // pointers so it works with memcpy
     {
-      return *static_cast<T*>(this);
+      if constexpr (std::is_trivial_v<T>)
+        return static_cast<T*>(std::memcpy(d_first, first, (last - first) * sizeof(T)));
+      else if (std::is_nothrow_move_constructible_v<T>)
+        return std::move(first, last, d_first);
+      else
+        return std::copy(first, last, d_first);
     }
-  protected:
-    T& allocator() noexcept
+
+    template<typename T, typename = void>
+    struct allocator_base
     {
-      return *static_cast<T*>(this);
-    }
-  };
+    public:
+      T get_allocator() const noexcept
+      {
+        return allocator_;
+      }
+    protected:
+      T& allocator() noexcept
+      {
+        return allocator_;
+      }
+    private:
+      T allocator_;
+    };
+
+    template<typename T>
+    struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : T
+    {
+    public:
+      T get_allocator() const noexcept
+      {
+        return *static_cast<T*>(this);
+      }
+    protected:
+      T& allocator() noexcept
+      {
+        return *static_cast<T*>(this);
+      }
+    };
+  }
 
   template<typename T, typename Allocator = std::allocator<T>>
-  class vector : public allocator_base<Allocator>
+  class vector : public detail::allocator_base<Allocator>
   {
   public:
     // typedefs
@@ -148,21 +173,7 @@ namespace kstd
 
     void reserve(size_type cap)
     {
-      if (cap <= capacity_)
-        return;
-      if (data_ != nullptr)
-      {
-        pointer new_data = std::allocator_traits<Allocator>::allocate(allocator(), cap);
-        uninitialized_move_if_noexcept(data_, data_ + size_, new_data);
-        std::destroy(data_, data_ + size_);
-        std::allocator_traits<Allocator>::deallocate(allocator(), data_, capacity_);
-        data_ = new_data;
-      }
-      else
-      {
-        data_ = std::allocator_traits<Allocator>::allocate(allocator(), cap);
-      }
-      capacity_ = cap;
+      reserve_offset(cap, size_, 0);
     }
 
     void shrink_to_fit()
@@ -233,6 +244,7 @@ namespace kstd
       ++size_;
       return back();
     }
+
     void push_back(const T& value)
     {
       reserve(size_ + 1);
@@ -249,14 +261,65 @@ namespace kstd
 
     void pop_back()
     {
-      back().~T();
+      if (!std::is_trivially_destructible_v<T>)
+        back().~T();
       --size_;
     }
 
+    template<class... Args> 
+    iterator emplace(const_iterator pos, Args&&... args)
+    {
+      size_type emplaced_pos = pos - begin();
+      if (!reserve_insert(size_ + 1, emplaced_pos, 1) && emplaced_pos < size_)
+      {
+        detail::uninitialized_move_range_optimal(data_ + size_ - 1, data_ + size_, data_ + size_ + 1);
+        detail::move_range_optimal(data_ + emplaced_pos, data_ + size_ - 1, data_ + emplaced_pos + 1);
+        *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
+      }
+      else
+      {
+        new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
+      }
+      ++size_;
+      return data_ + emplaced_pos;
+    }
 
-    
   private:
-    using allocator_base<Allocator>::allocator;
+    bool reserve_insert(size_type cap, size_type pos, int count)
+    {
+      return reserve_offset(cap, pos, count);
+    }
+
+    bool reserve_erase(size_type cap, size_type pos, int count)
+    {
+      return reserve_offset(cap, pos, -count);
+    }
+
+    bool reserve_offset(size_type cap, size_type pos, int count)
+    {
+      if (cap <= capacity_)
+        return false;
+      if (data_ != nullptr)
+      {
+        pointer new_data = std::allocator_traits<Allocator>::allocate(allocator(), cap);
+        detail::uninitialized_move_range_optimal(data_, data_ + pos, new_data);
+        if (count < 0)
+          detail::uninitialized_move_range_optimal(data_ + pos - count, data_ + size_, new_data + pos);
+        else
+          detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
+        if constexpr (!std::is_trivial_v<T>)
+          std::destroy(data_, data_ + size_);
+        std::allocator_traits<Allocator>::deallocate(allocator(), data_, capacity_);
+        data_ = new_data;
+      }
+      else
+      {
+        data_ = std::allocator_traits<Allocator>::allocate(allocator(), cap);
+      }
+      capacity_ = cap;
+      return true;
+    }
+    using detail::allocator_base<Allocator>::allocator;
 
     pointer data_ = nullptr;
     size_type size_ = 0;
