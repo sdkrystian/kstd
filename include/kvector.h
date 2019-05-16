@@ -177,7 +177,7 @@ namespace kstd
 
     }
 
-    void resize(size_type sz, const T& t)
+    void resize(size_type sz, const T& value)
     {
 
     }
@@ -247,7 +247,7 @@ namespace kstd
     }
 
     // modifiers
-    template<class... Args>
+    template<typename... Args>
     reference emplace_back(Args&&... args)
     {
       reserve(size_ + 1);
@@ -277,42 +277,63 @@ namespace kstd
       --size_;
     }
 
-    template<class... Args> 
+    template<typename... Args> 
     iterator emplace(const_iterator pos, Args&&... args)
     {
       size_type emplaced_pos = pos - begin();
-      if (!reserve_insert(size_ + 1, emplaced_pos, 1) && emplaced_pos < size_)
-      {
-        detail::uninitialized_move_range_optimal(data_ + size_ - 1, data_ + size_, data_ + size_);
-        detail::move_range_optimal_backward(data_ + emplaced_pos, data_ + size_ - 1, data_ + emplaced_pos + 1);
+      if (!shift_elements(emplaced_pos, 1) && emplaced_pos < size_)
         *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
-      }
       else
-      {
         new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
-      }
       ++size_;
       return data_ + emplaced_pos;
     }
 
-  private:
-    /*template<class... Args>
-    iterator emplace_range(const_iterator pos,  Args&&... args)
+    template<typename InputIt>
+    iterator insert(const_iterator pos, InputIt first, InputIt last)
     {
       size_type emplaced_pos = pos - begin();
-      if (!reserve_insert(size_ + 1, emplaced_pos, 1) && emplaced_pos < size_)
+      size_type count = last - first;
+      if (!shift_elements(emplaced_pos, count))
       {
-        detail::uninitialized_move_range_optimal(data_ + size_ - 1, data_ + size_, data_ + size_);
-        detail::move_range_optimal_backward(data_ + emplaced_pos, data_ + size_ - 1, data_ + emplaced_pos + 1);
-        *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
+        size_type uninit_to_copy = std::clamp(size_ - emplaced_pos, size_type(0), count); // broken, ugh
+        std::uninitialized_copy(last - uninit_to_copy, last, data_ + count - uninit_to_copy);
+        std::copy(first, last - uninit_to_copy, data_ + emplaced_pos);
       }
       else
       {
-        new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
+        std::uninitialized_copy(first, last, data_ + emplaced_pos);
       }
-      ++size_;
+      size_ += count;
       return data_ + emplaced_pos;
-    }*/
+    }
+
+    iterator insert(const_iterator pos, const T& value)
+    {
+      return emplace(pos, value);
+    }
+
+    iterator insert(const_iterator pos, T&& value)
+    {
+      return emplace(pos, std::move(value));
+    }
+
+    iterator insert(const_iterator pos, size_type count, const T& value)
+    {
+
+    }
+  private:
+    bool shift_elements(size_type pos, size_type count)
+    {
+      bool realloc = reserve_insert(size_ + count, pos, count);
+      if (!realloc)
+      {
+        size_type uninit_to_move = std::clamp(size_ - pos, size_type(0), count); // broken
+        detail::uninitialized_move_range_optimal(data_ + size_ - uninit_to_move, data_ + size_, data_ + size_);
+        detail::move_range_optimal_backward(data_ + pos, data_ + size_ - uninit_to_move, data_ + pos + count);
+      }
+      return realloc;
+    }
 
     bool reserve_insert(size_type cap, size_type pos, int count)
     {
