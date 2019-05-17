@@ -42,6 +42,24 @@ namespace kstd
         return std::copy_backward(first, last, d_first);
     }
 
+    template<typename T, typename U>
+    T* copy_range_optimal(T* first, T* last, U* d_first) // pointers so it works with memcpy
+    {
+      if constexpr (std::is_trivial_v<T>)
+        return static_cast<T*>(std::memcpy(d_first, first, (last - first) * sizeof(T)));
+      else
+        return std::copy(first, last, d_first);
+    }
+
+    template<typename T, typename U>
+    T* uninitialized_copy_range_optimal(T* first, T* last, U* d_first) // pointers so it works with memcpy
+    {
+      if constexpr (std::is_trivial_v<T>)
+        return static_cast<T*>(std::memcpy(d_first, first, (last - first) * sizeof(T)));
+      else
+        return std::uninitialized_copy(first, last, d_first);
+    }
+
     template<typename T, typename = void>
     struct allocator_base
     {
@@ -292,25 +310,6 @@ namespace kstd
       return data_ + emplaced_pos;
     }
 
-    template<typename InputIt>
-    iterator insert(const_iterator pos, InputIt first, InputIt last)
-    {
-      size_type emplaced_pos = pos - begin();
-      size_type count = last - first;
-      if (!shift_elements_right(emplaced_pos, count))
-      {
-        size_type uninit_to_copy = std::clamp((emplaced_pos + count) - size_, size_type(0), count);
-        std::copy(first, last - uninit_to_copy, data_ + emplaced_pos);
-        std::uninitialized_copy(last - uninit_to_copy, last, data_ + emplaced_pos + count - uninit_to_copy);
-      }
-      else
-      {
-        std::uninitialized_copy(first, last, data_ + emplaced_pos);
-      }
-      size_ += count;
-      return data_ + emplaced_pos;
-    }
-
     iterator insert(const_iterator pos, const T& value)
     {
       return emplace(pos, value);
@@ -323,12 +322,40 @@ namespace kstd
 
     iterator insert(const_iterator pos, size_type count, const T& value)
     {
+      size_type emplaced_pos = pos - begin();
+      size_type count = last - first;
+      if (!shift_elements_right(emplaced_pos, count))
+      {
 
+      }
+      else
+      {
+        detail::uninitialized_copy_range_optimal(first, last, data_ + emplaced_pos);
+      }
     }
 
-    iterator erase(const_iterator pos)
+    template<typename InputIt>
+    iterator insert(const_iterator pos, InputIt first, InputIt last)
     {
-      return erase(pos, pos + 1);
+      size_type emplaced_pos = pos - begin();
+      size_type count = last - first;
+      if (!shift_elements_right(emplaced_pos, count))
+      {
+        size_type uninit_to_copy = std::clamp((emplaced_pos + count) - size_, size_type(0), count);
+        detail::copy_range_optimal(first, last - uninit_to_copy, data_ + emplaced_pos);
+        detail::uninitialized_copy_range_optimal(last - uninit_to_copy, last, data_ + emplaced_pos + count - uninit_to_copy);
+      }
+      else
+      {
+        detail::uninitialized_copy_range_optimal(first, last, data_ + emplaced_pos);
+      }
+      size_ += count;
+      return data_ + emplaced_pos;
+    }
+
+    iterator insert(const_iterator pos, std::initializer_list<T> list)
+    {
+      return insert(pos, list.begin(), list.end());
     }
 
     iterator erase(const_iterator first, const_iterator last)
@@ -339,6 +366,16 @@ namespace kstd
       std::destroy(data_ + size_ - count, data_ + size_);
       size_ -= count;
       return data_ + pos + 1;
+    }
+
+    iterator erase(const_iterator pos)
+    {
+      return erase(pos, pos + 1);
+    }
+
+    void clear() noexcept
+    {
+      erase(begin(), end());
     }
   private:
     bool shift_elements_right(size_type pos, size_type count)
