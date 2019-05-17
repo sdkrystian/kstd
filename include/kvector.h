@@ -272,14 +272,13 @@ namespace kstd
     iterator insert(const_iterator pos, size_type count, const T& value)
     {
       size_type emplaced_pos = pos - begin();
-      //size_type count = last - first;
       if (!shift_elements_right(emplaced_pos, count))
       {
-
+        
       }
       else
       {
-        //detail::uninitialized_copy_range_optimal(first, last, data_ + emplaced_pos);
+        detail::uninitialized_fill_range_optimal(data_, data_ + emplaced_pos, value);
       }
     }
 

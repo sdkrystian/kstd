@@ -118,5 +118,27 @@ namespace kstd
       else
         return std::uninitialized_copy(first, last, d_first);
     }
+
+    template<typename ForwardIt, typename T>
+    void uninitialized_fill_range_optimal(ForwardIt first, ForwardIt last, const T& value)
+    {
+      using T = typename std::iterator_traits<ForwardIt>::value_type;
+      if constexpr (std::is_trivial_v<T>)
+        for (; first != last; ++last)
+          std::memcpy(first, &value, sizeof(T));
+      else
+        std::uninitialized_fill(first, last, value);
+    }
+
+    template<typename ForwardIt, typename T>
+    void fill_range_optimal(ForwardIt first, ForwardIt last, const T& value)
+    {
+      using T = typename std::iterator_traits<ForwardIt>::value_type;
+      if constexpr (std::is_trivial_v<T>)
+        for (; first != last; ++last)
+          std::memcpy(first, &value, sizeof(T));
+      else
+        std::fill(first, last, value);
+    }
   }
 }
