@@ -274,12 +274,16 @@ namespace kstd
       size_type emplaced_pos = pos - begin();
       if (!shift_elements_right(emplaced_pos, count))
       {
-        
+        size_type uninit_to_copy = std::clamp((emplaced_pos + count) - size_, size_type(0), count);
+        detail::fill_range_optimal(data_ + emplaced_pos, data_ + emplaced_pos + count - uninit_to_copy, value);
+        detail::uninitialized_fill_range_optimal(data_ + emplaced_pos + count - uninit_to_copy, data_ + emplaced_pos + count, value);
       }
       else
       {
-        detail::uninitialized_fill_range_optimal(data_, data_ + emplaced_pos, value);
+        detail::uninitialized_fill_range_optimal(data_ + emplaced_pos, data_ + emplaced_pos + count, value);
       }
+      size_ += count;
+      return data_ + emplaced_pos;
     }
 
     template<typename InputIt>
