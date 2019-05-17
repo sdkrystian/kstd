@@ -55,6 +55,11 @@ namespace kstd
       {
         return allocator_;
       }
+
+      const T& allocator() const noexcept
+      {
+        return allocator_;
+      }
     private:
       T allocator_;
     };
@@ -65,10 +70,15 @@ namespace kstd
     public:
       T get_allocator() const noexcept
       {
-        return *static_cast<T*>(this);
+        return allocator();
       }
     protected:
       T& allocator() noexcept
+      {
+        return *static_cast<T*>(this);
+      }
+
+      const T& allocator() const noexcept
       {
         return *static_cast<T*>(this);
       }
@@ -250,24 +260,17 @@ namespace kstd
     template<typename... Args>
     reference emplace_back(Args&&... args)
     {
-      reserve(size_ + 1);
-      new (data_ + size_) T(std::forward<Args>(args)...);
-      ++size_;
-      return back();
+      return *emplace(end(), std::forward<Args>(args)...);
     }
 
     void push_back(const T& value)
     {
-      reserve(size_ + 1);
-      new (data_ + size_) T(value);
-      ++size_;
+      emplace_back(value);
     }
 
     void push_back(T&& value)
     {
-      reserve(size_ + 1);
-      new (data_ + size_) T(std::move(value));
-      ++size_;
+      emplace_back(std::move(value));
     }
 
     void pop_back()
@@ -322,6 +325,21 @@ namespace kstd
     {
 
     }
+
+    iterator erase(const_iterator pos)
+    {
+      return erase(pos, pos + 1);
+    }
+
+    iterator erase(const_iterator first, const_iterator last)
+    {
+      size_type count = last - first;
+      size_type pos = first - begin();
+      detail::move_range_optimal(data_ + pos + count, data_ + size_, data_ + pos);
+      std::destroy(data_ + size_ - count, data_ + size_);
+      size_ -= count;
+      return data_ + pos + 1;
+    }
   private:
     bool shift_elements_right(size_type pos, size_type count)
     {
@@ -335,15 +353,7 @@ namespace kstd
       return realloc;
     }
 
-    bool shift_elements_left(size_type pos, size_type count)
-    {
-      bool realloc = reserve_offset(size_ + count, pos, -count);
-      if (!realloc)
-        detail::move_range_optimal(data_ + pos + count, data_ + size_, data_ + pos);
-      return realloc;
-    }
-
-    bool reserve_offset(size_type cap, size_type pos, int count)
+    bool reserve_offset(size_type cap, size_type pos, size_type count)
     {
       if (cap <= capacity_)
         return false;
@@ -351,10 +361,7 @@ namespace kstd
       {
         pointer new_data = std::allocator_traits<Allocator>::allocate(allocator(), cap);
         detail::uninitialized_move_range_optimal(data_, data_ + pos, new_data);
-        if (count < 0)
-          detail::uninitialized_move_range_optimal(data_ + pos - count, data_ + size_, new_data + pos);
-        else
-          detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
+        detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
         if constexpr (!std::is_trivial_v<T>)
           std::destroy(data_, data_ + size_);
         std::allocator_traits<Allocator>::deallocate(allocator(), data_, capacity_);
