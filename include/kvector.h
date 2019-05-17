@@ -281,7 +281,7 @@ namespace kstd
     iterator emplace(const_iterator pos, Args&&... args)
     {
       size_type emplaced_pos = pos - begin();
-      if (!shift_elements(emplaced_pos, 1) && emplaced_pos < size_)
+      if (!shift_elements_right(emplaced_pos, 1) && emplaced_pos < size_)
         *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
       else
         new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
@@ -294,11 +294,11 @@ namespace kstd
     {
       size_type emplaced_pos = pos - begin();
       size_type count = last - first;
-      if (!shift_elements(emplaced_pos, count))
+      if (!shift_elements_right(emplaced_pos, count))
       {
-        size_type uninit_to_copy = std::clamp(size_ - emplaced_pos, size_type(0), count); // broken, ugh
-        std::uninitialized_copy(last - uninit_to_copy, last, data_ + count - uninit_to_copy);
+        size_type uninit_to_copy = std::clamp((emplaced_pos + count) - size_, size_type(0), count);
         std::copy(first, last - uninit_to_copy, data_ + emplaced_pos);
+        std::uninitialized_copy(last - uninit_to_copy, last, data_ + emplaced_pos + count - uninit_to_copy);
       }
       else
       {
@@ -323,26 +323,24 @@ namespace kstd
 
     }
   private:
-    bool shift_elements(size_type pos, size_type count)
+    bool shift_elements_right(size_type pos, size_type count)
     {
-      bool realloc = reserve_insert(size_ + count, pos, count);
+      bool realloc = reserve_offset(size_ + count, pos, count);
       if (!realloc)
       {
-        size_type uninit_to_move = std::clamp(size_ - pos, size_type(0), count); // broken
-        detail::uninitialized_move_range_optimal(data_ + size_ - uninit_to_move, data_ + size_, data_ + size_);
+        size_type uninit_to_move = std::clamp(size_ - pos, size_type(0), count);
+        detail::uninitialized_move_range_optimal(data_ + size_ - uninit_to_move, data_ + size_, data_ + size_ + count - uninit_to_move);
         detail::move_range_optimal_backward(data_ + pos, data_ + size_ - uninit_to_move, data_ + pos + count);
       }
       return realloc;
     }
 
-    bool reserve_insert(size_type cap, size_type pos, int count)
+    bool shift_elements_left(size_type pos, size_type count)
     {
-      return reserve_offset(cap, pos, count);
-    }
-
-    bool reserve_erase(size_type cap, size_type pos, int count)
-    {
-      return reserve_offset(cap, pos, -count);
+      bool realloc = reserve_offset(size_ + count, pos, -count);
+      if (!realloc)
+        detail::move_range_optimal(data_ + pos + count, data_ + size_, data_ + pos);
+      return realloc;
     }
 
     bool reserve_offset(size_type cap, size_type pos, int count)
