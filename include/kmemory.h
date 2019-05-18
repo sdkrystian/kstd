@@ -3,7 +3,7 @@
 #include <utility>
 #include <type_traits>
 
-#define ALLOW_UB
+//#define ALLOW_UB
 
 namespace kstd
 {
@@ -18,7 +18,7 @@ namespace kstd
         return OutputIterator(std::memcpy(d_first, first, (last - first) * sizeof(T)));
       else if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>)
 #else
-      if (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>)
+      if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>)
 #endif
         return std::uninitialized_move(first, last, d_first);
       else
@@ -34,7 +34,7 @@ namespace kstd
         return OutputIterator(std::memcpy(d_first, first, (last - first) * sizeof(T)));
       else if constexpr (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
 #else
-      if (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
+      if constexpr (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
 #endif
         return std::move(first, last, d_first);
       else
@@ -50,7 +50,7 @@ namespace kstd
         return OutputIterator(std::memmove(d_first, first, (last - first) * sizeof(T)));
       else if constexpr (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
 #else
-      if (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
+      if constexpr (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
 #endif
         return std::move_backward(first, last, d_first);
       else
