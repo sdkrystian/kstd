@@ -62,6 +62,16 @@ namespace kstd
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     // constructors
+    ~vector()
+    {
+      if (data_)
+      {
+        if constexpr (!std::is_trivially_destructible_v<T>)
+          std::destroy(data_, data_ + size_);
+        traits::deallocate(allocator(), data_, capacity_);
+      }
+    }
+
     Allocator get_allocator() const noexcept
     {
       return allocator();
@@ -247,7 +257,7 @@ namespace kstd
     void pop_back()
     {
       if constexpr (!std::is_trivially_destructible_v<T>)
-        back().~T();
+        traits::destroy(allocator(), data_ + size_ - 1);
       --size_;
     }
 
