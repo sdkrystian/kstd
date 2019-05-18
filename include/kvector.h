@@ -357,7 +357,8 @@ namespace kstd
       {
         pointer new_data = traits::allocate(allocator(), new_cap);
         detail::uninitialized_move_range_optimal(data_, data_ + pos, new_data);
-        detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
+        //if (count)
+          detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
         if constexpr (!std::is_trivial_v<T>)
           std::destroy(data_, data_ + size_);
         traits::deallocate(allocator(), data_, capacity_);
