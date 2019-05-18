@@ -3,6 +3,7 @@
 #include <iostream>
 #include <algorithm>
 #include <type_traits>
+#include "ktype_traits.h"
 
 namespace kstd
 {
@@ -32,15 +33,6 @@ namespace kstd
       std::move(src, src + count, dest);
     }
   };
-
-  template<class, class = void>
-  struct is_iterator : std::false_type { };
-
-  template<class T>
-  struct is_iterator<T, decltype(std::iterator_traits<T>::iterator_category(), void())> : std::true_type { };
-
-  template<typename T>
-  constexpr bool is_iterator_v = is_iterator<T>::value;
 
   template<typename Elem, typename Traits = std::char_traits<Elem>>
   class basic_string
@@ -281,8 +273,8 @@ namespace kstd
       return append(&ch, 1);
     }
 
-    template<typename Iter, typename = std::enable_if_t<is_iterator_v<Iter>>>
-    basic_string & append(const Iter first, const Iter last)
+    template<typename Iter, typename = std::enable_if_t<detail::is_iterator_v<Iter>>>
+    basic_string& append(const Iter first, const Iter last)
     {
       return append(first, last - first);
     }
@@ -319,7 +311,7 @@ namespace kstd
       return insert(pos, str, Traits::length(str));
     }
 
-    basic_string& insert(std::size_t pos, const basic_string & str)
+    basic_string& insert(std::size_t pos, const basic_string& str)
     {
       return insert(pos, str.data(), str.size());
     }
@@ -329,8 +321,8 @@ namespace kstd
       return insert(pos, &ch, 1);
     }
 
-    template<typename Iter, typename = std::enable_if_t<is_iterator_v<Iter>>>
-    basic_string & insert(std::size_t pos, const Iter first, const Iter last)
+    template<typename Iter, typename = std::enable_if_t<detail::is_iterator_v<Iter>>>
+    basic_string& insert(std::size_t pos, const Iter first, const Iter last)
     {
       return insert(pos, first, last - first);
     }
@@ -342,7 +334,7 @@ namespace kstd
       return *this;
     }
 
-    basic_string& assign(const basic_string & str)
+    basic_string& assign(const basic_string& str)
     {
       return *this = str;
     }

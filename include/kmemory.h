@@ -5,7 +5,7 @@
 
 namespace kstd
 {
-#define ALLOW_UB
+//#define ALLOW_UB
 
   namespace detail
   {

@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <stdexcept>
 #include "kmemory.h"
+#include "ktype_traits.h"
 
 namespace kstd
 {
@@ -27,7 +28,7 @@ namespace kstd
     };
 
     template<typename T>
-    struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
+    struct allocator_base<T, std::void_t<T>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
     {
     protected:
       T& allocator() noexcept
@@ -183,7 +184,9 @@ namespace kstd
     
     const_reference at(size_type n) const
     {
-      return at(n);
+      if (n >= size_)
+        throw std::out_of_range("n is out of range");
+      return data_[n];
     }
     
     reference front()
@@ -223,33 +226,27 @@ namespace kstd
     {
       reserve(size_ + 1);
       traits::construct(allocator(), data_ + size_, std::forward<Args>(args)...);
-      //new (data_ + size_) T(std::forward<Args>(args)...);
       ++size_;
       return *(data_ + size_ - 1);
-      //return *emplace(end(), std::forward<Args>(args)...);
     }
 
     void push_back(const T& value)
     {
       reserve(size_ + 1);
       traits::construct(allocator(), data_ + size_, value);
-      //new (data_ + size_) T(value);
       ++size_;
-      //emplace_back(value);
     }
 
     void push_back(T&& value)
     {
       reserve(size_ + 1);
       traits::construct(allocator(), data_ + size_, std::move(value));
-      //new (data_ + size_) T(std::move(value));
       ++size_;
-      //emplace_back(std::move(value));
     }
 
     void pop_back()
     {
-      if (!std::is_trivially_destructible_v<T>)
+      if constexpr (!std::is_trivially_destructible_v<T>)
         back().~T();
       --size_;
     }
@@ -262,7 +259,6 @@ namespace kstd
         *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
       else
         traits::construct(allocator(), data_ + emplaced_pos, std::forward<Args>(args)...);
-        //new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
       ++size_;
       return data_ + emplaced_pos;
     }
@@ -294,8 +290,8 @@ namespace kstd
       return data_ + emplaced_pos;
     }
 
-    template<typename InputIt>
-    iterator insert(const_iterator pos, InputIt first, InputIt last)
+    template<typename InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
+    iterator insert(const_iterator pos, InputIterator first, InputIterator last)
     {
       size_type emplaced_pos = pos - begin();
       size_type count = last - first;
@@ -323,7 +319,8 @@ namespace kstd
       size_type count = last - first;
       size_type pos = first - begin();
       detail::move_range_optimal(data_ + pos + count, data_ + size_, data_ + pos);
-      std::destroy(data_ + size_ - count, data_ + size_);
+      if constexpr (!std::is_trivially_destructible_v<T>)
+        std::destroy(data_ + size_ - count, data_ + size_);
       size_ -= count;
       return data_ + pos + 1;
     }
