@@ -12,11 +12,6 @@ namespace kstd
     template<typename T, typename = void>
     struct allocator_base
     {
-    public:
-      T get_allocator() const noexcept
-      {
-        return allocator_;
-      }
     protected:
       T& allocator() noexcept
       {
@@ -32,13 +27,8 @@ namespace kstd
     };
 
     template<typename T>
-    struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : T
+    struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
     {
-    public:
-      T get_allocator() const noexcept
-      {
-        return allocator();
-      }
     protected:
       T& allocator() noexcept
       {
@@ -53,7 +43,7 @@ namespace kstd
   }
 
   template<typename T, typename Allocator = std::allocator<T>>
-  class vector : public detail::allocator_base<Allocator>
+  class vector : protected detail::allocator_base<Allocator>
   {
   public:
     // typedefs
@@ -71,6 +61,10 @@ namespace kstd
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     // constructors
+    Allocator get_allocator() const noexcept
+    {
+      return allocator();
+    }
 
     // iterators
     iterator begin() noexcept
@@ -144,7 +138,7 @@ namespace kstd
       return size_;
     }
 
-    size_type capactiy() const noexcept
+    size_type capacity() const noexcept
     {
       return capacity_;
     }
@@ -227,17 +221,27 @@ namespace kstd
     template<typename... Args>
     reference emplace_back(Args&&... args)
     {
-      return *emplace(end(), std::forward<Args>(args)...);
+      reserve(size_ + 1);
+      new (data_ + size_) T(std::forward<Args>(args)...);
+      ++size_;
+      return *(data_ + size_ - 1);
+      //return *emplace(end(), std::forward<Args>(args)...);
     }
 
     void push_back(const T& value)
     {
-      emplace_back(value);
+      reserve(size_ + 1);
+      new (data_ + size_) T(value);
+      ++size_;
+      //emplace_back(value);
     }
 
     void push_back(T&& value)
     {
-      emplace_back(std::move(value));
+      reserve(size_ + 1);
+      new (data_ + size_) T(std::move(value));
+      ++size_;
+      //emplace_back(std::move(value));
     }
 
     void pop_back()
@@ -346,9 +350,11 @@ namespace kstd
     {
       if (cap <= capacity_)
         return false;
+      size_type new_cap = capacity_ ? capacity_ : 1;
+      for (; new_cap <= cap; new_cap <<= 1);
       if (data_ != nullptr)
       {
-        pointer new_data = std::allocator_traits<Allocator>::allocate(allocator(), cap);
+        pointer new_data = std::allocator_traits<Allocator>::allocate(allocator(), new_cap);
         detail::uninitialized_move_range_optimal(data_, data_ + pos, new_data);
         detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
         if constexpr (!std::is_trivial_v<T>)
@@ -358,9 +364,9 @@ namespace kstd
       }
       else
       {
-        data_ = std::allocator_traits<Allocator>::allocate(allocator(), cap);
+        data_ = std::allocator_traits<Allocator>::allocate(allocator(), new_cap);
       }
-      capacity_ = cap;
+      capacity_ = new_cap;
       return true;
     }
     using detail::allocator_base<Allocator>::allocator;
