@@ -222,7 +222,8 @@ namespace kstd
     reference emplace_back(Args&&... args)
     {
       reserve(size_ + 1);
-      new (data_ + size_) T(std::forward<Args>(args)...);
+      traits::construct(allocator(), data_ + size_, std::forward<Args>(args)...);
+      //new (data_ + size_) T(std::forward<Args>(args)...);
       ++size_;
       return *(data_ + size_ - 1);
       //return *emplace(end(), std::forward<Args>(args)...);
@@ -231,7 +232,8 @@ namespace kstd
     void push_back(const T& value)
     {
       reserve(size_ + 1);
-      new (data_ + size_) T(value);
+      traits::construct(allocator(), data_ + size_, value);
+      //new (data_ + size_) T(value);
       ++size_;
       //emplace_back(value);
     }
@@ -239,7 +241,8 @@ namespace kstd
     void push_back(T&& value)
     {
       reserve(size_ + 1);
-      new (data_ + size_) T(std::move(value));
+      traits::construct(allocator(), data_ + size_, std::move(value));
+      //new (data_ + size_) T(std::move(value));
       ++size_;
       //emplace_back(std::move(value));
     }
@@ -258,7 +261,8 @@ namespace kstd
       if (!shift_elements_right(emplaced_pos, 1) && emplaced_pos < size_)
         *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
       else
-        new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
+        traits::construct(allocator(), data_ + emplaced_pos, std::forward<Args>(args)...);
+        //new (data_ + emplaced_pos) T(std::forward<Args>(args)...);
       ++size_;
       return data_ + emplaced_pos;
     }
@@ -354,21 +358,23 @@ namespace kstd
       for (; new_cap <= cap; new_cap <<= 1);
       if (data_ != nullptr)
       {
-        pointer new_data = std::allocator_traits<Allocator>::allocate(allocator(), new_cap);
+        pointer new_data = traits::allocate(allocator(), new_cap);
         detail::uninitialized_move_range_optimal(data_, data_ + pos, new_data);
         detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
         if constexpr (!std::is_trivial_v<T>)
           std::destroy(data_, data_ + size_);
-        std::allocator_traits<Allocator>::deallocate(allocator(), data_, capacity_);
+        traits::deallocate(allocator(), data_, capacity_);
         data_ = new_data;
       }
       else
       {
-        data_ = std::allocator_traits<Allocator>::allocate(allocator(), new_cap);
+        data_ = traits::allocate(allocator(), new_cap);
       }
       capacity_ = new_cap;
       return true;
     }
+
+    using traits = std::allocator_traits<Allocator>;
     using detail::allocator_base<Allocator>::allocator;
 
     pointer data_ = nullptr;

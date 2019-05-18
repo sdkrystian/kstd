@@ -5,7 +5,7 @@
 
 namespace kstd
 {
-//#define ALLOW_UB
+#define ALLOW_UB
 
   namespace detail
   {
@@ -141,9 +141,8 @@ namespace kstd
     void uninitialized_fill_range_optimal(ForwardIt first, ForwardIt last, const T& value)
     {
 #ifdef ALLOW_UB
-      using T = typename std::iterator_traits<ForwardIt>::value_type;
       if constexpr (std::is_trivial_v<T>)
-        for (; first != last; ++last)
+        for (; first != last; ++first)
           std::memcpy(first, &value, sizeof(T));
       else
 #endif
@@ -154,9 +153,8 @@ namespace kstd
     void fill_range_optimal(ForwardIt first, ForwardIt last, const T& value)
     {
 #ifdef ALLOW_UB
-      using T = typename std::iterator_traits<ForwardIt>::value_type;
       if constexpr (std::is_trivial_v<T>)
-        for (; first != last; ++last)
+        for (; first != last; ++first)
           std::memcpy(first, &value, sizeof(T));
       else
 #endif
