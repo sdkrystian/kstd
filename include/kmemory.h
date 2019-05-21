@@ -9,7 +9,7 @@ namespace kstd
 {
   namespace detail
   {
-    template<typename InputIterator, typename OutputIterator>
+    /*template<typename InputIterator, typename OutputIterator>
     OutputIterator uninitialized_move_range_optimal(InputIterator first, InputIterator last, OutputIterator d_first)
     {
       using T = typename std::iterator_traits<InputIterator>::value_type;
@@ -103,6 +103,6 @@ namespace kstd
       else
 #endif
         std::fill(first, last, value);
-    }
+    }*/
   }
 }
