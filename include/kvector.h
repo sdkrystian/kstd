@@ -41,6 +41,28 @@ namespace kstd
         return *static_cast<T*>(this);
       }
     };
+
+    template<typename Alloc, typename ForwardIt>
+    void destroy_alloc(Alloc& alloc, ForwardIt first, ForwardIt last)
+    {
+      if constexpr (!std::is_trivial_v<std::iterator_traits<ForwardIt>::value_type>)
+        for (; first != last; ++first)
+          std::allocator_traits<Alloc>::destroy(alloc, std::addressof(*first));
+    }
+
+    template<typename Alloc, typename InputIt, typename OutputIt>
+    void uninit_move_alloc(Alloc& alloc, InputIt first, InputIt last, OutputIt d_first)
+    {
+      for (; first != last; ++first, ++d_first)
+        std::allocator_traits<Alloc>::construct(alloc, std::addressof(*d_first), std::move(*first)); // Yeah, its UB, I know
+    }
+
+    template<typename Alloc, typename InputIt, typename OutputIt>
+    void uninit_copy_alloc(Alloc& alloc, InputIt first, InputIt last, OutputIt d_first)
+    {
+      for (; first != last; ++first, ++d_first)
+        std::allocator_traits<Alloc>::construct(alloc, std::addressof(*d_first), *first); // Yeah, its UB, I know
+    }
   }
 
   template<typename T, typename Allocator = std::allocator<T>>
@@ -66,8 +88,7 @@ namespace kstd
     {
       if (data_)
       {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-          std::destroy(data_, data_ + size_);
+        detail::destroy_alloc(allocator(), data_, data_ + size_);
         traits::deallocate(allocator(), data_, capacity_);
       }
     }
@@ -284,23 +305,6 @@ namespace kstd
       return emplace(pos, std::move(value));
     }
 
-    /*iterator insert(const_iterator pos, size_type count, const T& value)
-    {
-      size_type emplaced_pos = pos - begin();
-      if (!shift_elements_right(emplaced_pos, count))
-      {
-        size_type uninit_to_copy = std::clamp((emplaced_pos + count) - size_, size_type(0), count);
-        detail::fill_range_optimal(data_ + emplaced_pos, data_ + emplaced_pos + count - uninit_to_copy, value);
-        detail::uninitialized_fill_range_optimal(data_ + emplaced_pos + count - uninit_to_copy, data_ + emplaced_pos + count, value);
-      }
-      else
-      {
-        detail::uninitialized_fill_range_optimal(data_ + emplaced_pos, data_ + emplaced_pos + count, value);
-      }
-      size_ += count;
-      return data_ + emplaced_pos;
-    }*/
-
     iterator insert(const_iterator pos, size_type count, const T& value)
     {
       size_type inserted_pos = pos - begin();
@@ -319,25 +323,6 @@ namespace kstd
       size_ += count;
       return data_ + inserted_pos;
     }
-
-    /*template<typename InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
-    iterator insert(const_iterator pos, InputIterator first, InputIterator last)
-    {
-      size_type emplaced_pos = pos - begin();
-      size_type count = last - first;
-      if (!shift_elements_right(emplaced_pos, count))
-      {
-        size_type uninit_to_copy = std::clamp((emplaced_pos + count) - size_, size_type(0), count);
-        detail::copy_range_optimal(first, last - uninit_to_copy, data_ + emplaced_pos);
-        detail::uninitialized_copy_range_optimal(last - uninit_to_copy, last, data_ + emplaced_pos + count - uninit_to_copy);
-      }
-      else
-      {
-        detail::uninitialized_copy_range_optimal(first, last, data_ + emplaced_pos);
-      }
-      size_ += count;
-      return data_ + emplaced_pos;
-    }*/
 
     template<typename InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
     iterator insert(const_iterator pos, InputIterator first, InputIterator last)
@@ -370,8 +355,7 @@ namespace kstd
       size_type count = last - first;
       size_type pos = first - begin();
       detail::move_range_optimal(data_ + pos + count, data_ + size_, data_ + pos);
-      if constexpr (!std::is_trivially_destructible_v<T>)
-        std::destroy(data_ + size_ - count, data_ + size_);
+      detail::destroy_alloc(allocator(), data_ + size_ - count, data_ + size_);
       size_ -= count;
       return data_ + pos + 1;
     }
@@ -398,22 +382,6 @@ namespace kstd
       detail::move_range_optimal_backward(data_ + pos, data_ + size_ - uninit_to_move, data_ + pos + count);
     }
 
-    /*bool shift_elements_right(size_type pos, size_type count)
-    {
-      bool realloc = needs_to_reallocate(size_ + count);
-      if (!realloc)
-      {
-        size_type uninit_to_move = std::clamp(size_ - pos, size_type(0), count);
-        detail::uninitialized_move_range_optimal(data_ + size_ - uninit_to_move, data_ + size_, data_ + size_ + count - uninit_to_move);
-        detail::move_range_optimal_backward(data_ + pos, data_ + size_ - uninit_to_move, data_ + pos + count);
-      }
-      else
-      {
-        reserve_offset(size_ + count, pos, count);
-      }
-      return realloc;
-    }*/
-
     bool reserve_offset(size_type cap, size_type pos, size_type count)
     {
       size_type new_cap = capacity_ ? capacity_ : 1;
@@ -423,8 +391,7 @@ namespace kstd
         pointer new_data = traits::allocate(allocator(), new_cap);
         detail::uninitialized_move_range_optimal(data_, data_ + pos, new_data);
         detail::uninitialized_move_range_optimal(data_ + pos, data_ + size_, new_data + pos + count);
-        if constexpr (!std::is_trivial_v<T>)
-          std::destroy(data_, data_ + size_);
+        detail::destroy_alloc(allocator(), data_, data_ + size_);
         traits::deallocate(allocator(), data_, capacity_);
         data_ = new_data;
       }
