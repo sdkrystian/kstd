@@ -164,9 +164,10 @@ namespace kstd
 
     }
 
-    void reserve(size_type cap)
+    inline void reserve(size_type cap)
     {
-      reserve_offset(cap, size_, 0);
+      if (needs_to_reallocate(cap + 1))
+        reserve_offset(cap, size_, 0);
     }
 
     void shrink_to_fit()
@@ -283,7 +284,7 @@ namespace kstd
       return emplace(pos, std::move(value));
     }
 
-    iterator insert(const_iterator pos, size_type count, const T& value)
+    /*iterator insert(const_iterator pos, size_type count, const T& value)
     {
       size_type emplaced_pos = pos - begin();
       if (!shift_elements_right(emplaced_pos, count))
@@ -298,9 +299,28 @@ namespace kstd
       }
       size_ += count;
       return data_ + emplaced_pos;
+    }*/
+
+    iterator insert(const_iterator pos, size_type count, const T& value)
+    {
+      size_type inserted_pos = pos - begin();
+      if (needs_to_reallocate(size_ + count))
+      {
+        reserve_offset(size_ + count, inserted_pos, count);
+        detail::uninitialized_fill_range_optimal(data_ + inserted_pos, data_ + inserted_pos + count, value);
+      }
+      else
+      {
+        size_type uninit_to_copy = std::clamp((inserted_pos + count) - size_, size_type(0), count);
+        shift_elements_right(inserted_pos, count);
+        detail::fill_range_optimal(data_ + inserted_pos, data_ + inserted_pos + count - uninit_to_copy, value);
+        detail::uninitialized_fill_range_optimal(data_ + inserted_pos + count - uninit_to_copy, data_ + inserted_pos + count, value);
+      }
+      size_ += count;
+      return data_ + inserted_pos;
     }
 
-    template<typename InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
+    /*template<typename InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
     iterator insert(const_iterator pos, InputIterator first, InputIterator last)
     {
       size_type emplaced_pos = pos - begin();
@@ -317,6 +337,27 @@ namespace kstd
       }
       size_ += count;
       return data_ + emplaced_pos;
+    }*/
+
+    template<typename InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
+    iterator insert(const_iterator pos, InputIterator first, InputIterator last)
+    {
+      size_type inserted_pos = pos - begin();
+      size_type count = last - first;
+      if (needs_to_reallocate(size_ + count))
+      {
+        reserve_offset(size_ + count, inserted_pos, count);
+        detail::uninitialized_copy_range_optimal(first, last, data_ + inserted_pos);
+      }
+      else
+      {
+        shift_elements_right(inserted_pos, count);
+        size_type uninit_to_copy = std::clamp((inserted_pos + count) - size_, size_type(0), count);
+        detail::copy_range_optimal(first, last - uninit_to_copy, data_ + inserted_pos);
+        detail::uninitialized_copy_range_optimal(last - uninit_to_copy, last, data_ + inserted_pos + count - uninit_to_copy);
+      }
+      size_ += count;
+      return data_ + inserted_pos;
     }
 
     iterator insert(const_iterator pos, std::initializer_list<T> list)
@@ -345,22 +386,36 @@ namespace kstd
       erase(begin(), end());
     }
   private:
-    bool shift_elements_right(size_type pos, size_type count)
+    inline bool needs_to_reallocate(size_type cap)
     {
-      bool realloc = reserve_offset(size_ + count, pos, count);
+      return cap > capacity_;
+    }
+
+    void shift_elements_right(size_type pos, size_type count)
+    {
+      size_type uninit_to_move = std::clamp(size_ - pos, size_type(0), count);
+      detail::uninitialized_move_range_optimal(data_ + size_ - uninit_to_move, data_ + size_, data_ + size_ + count - uninit_to_move);
+      detail::move_range_optimal_backward(data_ + pos, data_ + size_ - uninit_to_move, data_ + pos + count);
+    }
+
+    /*bool shift_elements_right(size_type pos, size_type count)
+    {
+      bool realloc = needs_to_reallocate(size_ + count);
       if (!realloc)
       {
         size_type uninit_to_move = std::clamp(size_ - pos, size_type(0), count);
         detail::uninitialized_move_range_optimal(data_ + size_ - uninit_to_move, data_ + size_, data_ + size_ + count - uninit_to_move);
         detail::move_range_optimal_backward(data_ + pos, data_ + size_ - uninit_to_move, data_ + pos + count);
       }
+      else
+      {
+        reserve_offset(size_ + count, pos, count);
+      }
       return realloc;
-    }
+    }*/
 
     bool reserve_offset(size_type cap, size_type pos, size_type count)
     {
-      if (cap <= capacity_)
-        return false;
       size_type new_cap = capacity_ ? capacity_ : 1;
       for (; new_cap <= cap; new_cap <<= 1);
       if (data_ != nullptr)
