@@ -13,6 +13,28 @@ namespace kstd
     template<typename T, typename = void>
     struct allocator_base
     {
+    public:
+      allocator_base() noexcept(noexcept(T())) : allocator_(T()) { }
+
+      allocator_base(const T& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) { }
+
+      allocator_base(T&& alloc) noexcept : allocator_(std::move(alloc)) { }
+
+      allocator_base operator=(const T& alloc)
+      {
+        if constexpr (traits::propagate_on_container_copy_assignment::value)
+          allocator_ = alloc;
+        return *this;
+      }
+
+      allocator_base operator=(T&& alloc) noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
+      {
+        if constexpr (traits::propagate_on_container_move_assignment::value)
+          allocator_ = std::move(alloc);
+        return *this;
+      }
+
+      using traits = std::allocator_traits<T>;
     protected:
       T& allocator() noexcept
       {
@@ -30,6 +52,28 @@ namespace kstd
     template<typename T>
     struct allocator_base<T, std::void_t<T>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
     {
+    public:
+      allocator_base() noexcept(noexcept(T())) : T(T()) { }
+
+      allocator_base(const T& alloc) noexcept : T(traits::select_on_container_copy_construction(alloc)) { }
+
+      allocator_base(T&& alloc) noexcept : T(std::move(alloc)) { }
+
+      allocator_base operator=(const T& alloc)
+      {
+        if constexpr (traits::propagate_on_container_copy_assignment::value)
+          allocator() = alloc;
+        return *this;
+      }
+
+      allocator_base operator=(T&& alloc) noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
+      {
+        if constexpr (traits::propagate_on_container_move_assignment::value)
+          allocator() = std::move(alloc);
+        return *this;
+      }
+
+      using traits = std::allocator_traits<T>;
     protected:
       T& allocator() noexcept
       {
@@ -190,6 +234,10 @@ namespace kstd
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     // constructors
+    vector() = default;
+
+
+
     ~vector()
     {
       if (data_)
@@ -508,9 +556,8 @@ namespace kstd
       capacity_ = new_cap;
       return true;
     }
-
-    using traits = std::allocator_traits<Allocator>;
     using detail::allocator_base<Allocator>::allocator;
+    using typename detail::allocator_base<Allocator>::traits;
 
     pointer data_ = nullptr;
     size_type size_ = 0;
