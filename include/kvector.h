@@ -234,9 +234,40 @@ namespace kstd
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     // constructors
-    vector() = default;
+    vector() noexcept(noexcept(Allocator())) : vector(Allocator()) { }
 
+    explicit vector(const Allocator& alloc) noexcept : detail::allocator_base(alloc) { }
 
+    explicit vector(size_type n, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc) 
+    {
+      reserve(n);
+    }
+
+    vector(const vector& other) : detail::allocator_base(other.allocator()), size_(other.size_)
+    {
+      reserve(other.capacity_);
+      detail::uninitialized_copy_range_optimal_alloc(allocator(), other.data_, other.data_ + size_, data_);
+    }
+
+    vector(vector&& other) noexcept : detail::allocator_base(std::move(other.allocator())), size_(other.size_), capacity_(other.capacity_), data_(other.data_)
+    {
+      other.size_ = 0;
+      other.capacity_ = 0;
+      other.data_ = nullptr;
+    }
+    
+    vector(const vector& other, const Allocator& alloc) : detail::allocator_base(alloc), size_(other.size_)
+    {
+      reserve(other.capacity_);
+      detail::uninitialized_copy_range_optimal_alloc(allocator(), other.data_, other.data_ + size_, data_);
+    }
+    
+    vector(vector&& other, const Allocator& alloc) noexcept : detail::allocator_base(alloc), size_(other.size_), capacity_(other.capacity_), data_(other.data_)
+    {
+      other.size_ = 0;
+      other.capacity_ = 0;
+      other.data_ = nullptr;
+    }
 
     ~vector()
     {
