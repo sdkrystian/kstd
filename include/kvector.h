@@ -118,6 +118,14 @@ namespace kstd
       return first;
     }
 
+    template<typename Alloc, typename ForwardIt>
+    ForwardIt uninitialized_default_fill_alloc(Alloc& alloc, ForwardIt first, ForwardIt last)
+    {
+      for (; first != last; ++first)
+        std::allocator_traits<Alloc>::construct(alloc, std::addressof(*first)); // Yeah, its UB, I know
+      return first;
+    }
+
     template<typename Alloc, typename InputIterator, typename OutputIterator>
     OutputIterator uninitialized_move_range_optimal_alloc(Alloc& alloc, InputIterator first, InputIterator last, OutputIterator d_first)
     {
@@ -202,8 +210,15 @@ namespace kstd
         detail::uninitialized_fill_alloc(alloc, first, last, value);
     }
 
-    template<typename ForwardIt, typename T>
-    void fill_range_optimal(ForwardIt first, ForwardIt last, const T& value)
+    template<typename Alloc, typename ForwardIterator>
+    void uninitialized_default_fill_range_optimal_alloc(Alloc& alloc, ForwardIterator first, ForwardIterator last)
+    {
+      if constexpr (!std::is_trivial_v<std::iterator_traits<ForwardIterator>::value_type>)
+        detail::uninitialized_default_fill_alloc(alloc, first, last);
+    }
+
+    template<typename ForwardIterator, typename T>
+    void fill_range_optimal(ForwardIterator first, ForwardIterator last, const T& value)
     {
 #ifdef ALLOW_UB
       if constexpr (std::is_trivial_v<T>)
@@ -241,6 +256,20 @@ namespace kstd
     explicit vector(size_type n, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc) 
     {
       reserve(n);
+      detail::uninitialized_default_fill_range_optimal_alloc(allocator(), data_, data_ + n);
+    }
+
+    vector(size_type n, const T& value, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc), size_(n)
+    {
+      reserve(n);
+      detail::uninitialized_fill_range_optimal_alloc(allocator(), data_, data_ + size_, value);
+    }
+
+    template<class InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
+    vector(InputIterator first, InputIterator last, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc), size_(last - first)
+    {
+      reserve(size_);
+      detail::uninitialized_copy_range_optimal_alloc(allocator(), first, last, data_);
     }
 
     vector(const vector& other) : detail::allocator_base(other.allocator()), size_(other.size_)
@@ -267,6 +296,12 @@ namespace kstd
       other.size_ = 0;
       other.capacity_ = 0;
       other.data_ = nullptr;
+    }
+
+    vector(std::initializer_list<T> list, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc), size_(list.size())
+    {
+      reserve(size_);
+      detail::uninitialized_copy_range_optimal_alloc(allocator(), list.begin(), list.end(), data_);
     }
 
     ~vector()
