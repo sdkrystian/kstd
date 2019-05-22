@@ -23,14 +23,14 @@ namespace kstd
       allocator_base operator=(const T& alloc)
       {
         if constexpr (traits::propagate_on_container_copy_assignment::value)
-          allocator_ = alloc;
+          allocator() = alloc;
         return *this;
       }
 
       allocator_base operator=(T&& alloc) noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
       {
         if constexpr (traits::propagate_on_container_move_assignment::value)
-          allocator_ = std::move(alloc);
+          allocator() = std::move(alloc);
         return *this;
       }
 
