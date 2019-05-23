@@ -10,15 +10,17 @@ namespace kstd
 {
   namespace detail
   {
+#define ALLOW_UB
+
     template<typename T, typename = void>
     struct allocator_base
     {
     public:
-      allocator_base() noexcept(noexcept(T())) : allocator_(T()) { }
+      allocator_base() noexcept(noexcept(T())) : allocator_(T()) {}
 
-      allocator_base(const T& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) { }
+      allocator_base(const T& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) {}
 
-      allocator_base(T&& alloc) noexcept : allocator_(std::move(alloc)) { }
+      allocator_base(T&& alloc) noexcept : allocator_(std::move(alloc)) {}
 
       allocator_base operator=(const T& alloc)
       {
@@ -53,11 +55,11 @@ namespace kstd
     struct allocator_base<T, std::void_t<T>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
     {
     public:
-      allocator_base() noexcept(noexcept(T())) : T(T()) { }
+      allocator_base() noexcept(noexcept(T())) : T(T()) {}
 
-      allocator_base(const T& alloc) noexcept : T(traits::select_on_container_copy_construction(alloc)) { }
+      allocator_base(const T& alloc) noexcept : T(traits::select_on_container_copy_construction(alloc)) {}
 
-      allocator_base(T&& alloc) noexcept : T(std::move(alloc)) { }
+      allocator_base(T&& alloc) noexcept : T(std::move(alloc)) {}
 
       allocator_base operator=(const T& alloc)
       {
@@ -249,56 +251,56 @@ namespace kstd
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     // constructors
-    vector() noexcept(noexcept(Allocator())) : vector(Allocator()) { }
+    vector() noexcept(noexcept(Allocator())) : vector(Allocator()) {}
 
-    explicit vector(const Allocator& alloc) noexcept : detail::allocator_base(alloc) { }
+    explicit vector(const Allocator& alloc) noexcept : vector::allocator_base(alloc) {}
 
-    explicit vector(size_type n, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc) 
+    explicit vector(size_type n, const Allocator& alloc = Allocator()) : vector::allocator_base(alloc)
     {
       reserve(n);
       detail::uninitialized_default_fill_range_optimal_alloc(allocator(), data_, data_ + n);
     }
 
-    vector(size_type n, const T& value, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc), size_(n)
+    vector(size_type n, const T& value, const Allocator& alloc = Allocator()) : vector::allocator_base(alloc), size_(n)
     {
       reserve(n);
       detail::uninitialized_fill_range_optimal_alloc(allocator(), data_, data_ + size_, value);
     }
 
     template<class InputIterator, typename = std::enable_if_t<detail::is_iterator_v<InputIterator>>>
-    vector(InputIterator first, InputIterator last, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc), size_(last - first)
+    vector(InputIterator first, InputIterator last, const Allocator& alloc = Allocator()) : vector::allocator_base(alloc), size_(last - first)
     {
       reserve(size_);
       detail::uninitialized_copy_range_optimal_alloc(allocator(), first, last, data_);
     }
 
-    vector(const vector& other) : detail::allocator_base(other.allocator()), size_(other.size_)
+    vector(const vector& other) : vector::allocator_base(other.allocator()), size_(other.size_)
     {
       reserve(other.capacity_);
       detail::uninitialized_copy_range_optimal_alloc(allocator(), other.data_, other.data_ + size_, data_);
     }
 
-    vector(vector&& other) noexcept : detail::allocator_base(std::move(other.allocator())), size_(other.size_), capacity_(other.capacity_), data_(other.data_)
-    {
-      other.size_ = 0;
-      other.capacity_ = 0;
-      other.data_ = nullptr;
-    }
-    
-    vector(const vector& other, const Allocator& alloc) : detail::allocator_base(alloc), size_(other.size_)
-    {
-      reserve(other.capacity_);
-      detail::uninitialized_copy_range_optimal_alloc(allocator(), other.data_, other.data_ + size_, data_);
-    }
-    
-    vector(vector&& other, const Allocator& alloc) noexcept : detail::allocator_base(alloc), size_(other.size_), capacity_(other.capacity_), data_(other.data_)
+    vector(vector&& other) noexcept : vector::allocator_base(std::move(other.allocator())), size_(other.size_), capacity_(other.capacity_), data_(other.data_)
     {
       other.size_ = 0;
       other.capacity_ = 0;
       other.data_ = nullptr;
     }
 
-    vector(std::initializer_list<T> list, const Allocator& alloc = Allocator()) : detail::allocator_base(alloc), size_(list.size())
+    vector(const vector& other, const Allocator& alloc) : vector::allocator_base(alloc), size_(other.size_)
+    {
+      reserve(other.capacity_);
+      detail::uninitialized_copy_range_optimal_alloc(allocator(), other.data_, other.data_ + size_, data_);
+    }
+
+    vector(vector&& other, const Allocator& alloc) noexcept : vector::allocator_base(alloc), size_(other.size_), capacity_(other.capacity_), data_(other.data_)
+    {
+      other.size_ = 0;
+      other.capacity_ = 0;
+      other.data_ = nullptr;
+    }
+
+    vector(std::initializer_list<T> list, const Allocator& alloc = Allocator()) : vector::allocator_base(alloc), size_(list.size())
     {
       reserve(size_);
       detail::uninitialized_copy_range_optimal_alloc(allocator(), list.begin(), list.end(), data_);
@@ -401,13 +403,30 @@ namespace kstd
         return;
       if (sz < size_)
       {
-        erase(data_ )
+        erase(data_ + sz, data_ + size_);
       }
+      else
+      {
+        reserve(sz);
+        detail::uninitialized_default_fill_range_optimal_alloc(allocator(), data_ + size_, data_ + sz);
+      }
+      size_ = sz;
     }
 
     void resize(size_type sz, const T& value)
     {
-
+      if (sz == size_)
+        return;
+      if (sz < size_)
+      {
+        erase(data_ + sz, data_ + size_);
+      }
+      else
+      {
+        reserve(sz);
+        detail::uninitialized_fill_range_optimal_alloc(allocator(), data_ + size_, data_ + sz, value);
+      }
+      size_ = sz;
     }
 
     inline void reserve(size_type cap)
@@ -426,41 +445,41 @@ namespace kstd
     {
       return data_[n];
     }
-    
+
     const_reference operator[](size_type n) const
     {
       return data_[n];
     }
-    
+
     reference at(size_type n)
     {
       if (n >= size_)
         throw std::out_of_range("n is out of range");
       return data_[n];
     }
-    
+
     const_reference at(size_type n) const
     {
       if (n >= size_)
         throw std::out_of_range("n is out of range");
       return data_[n];
     }
-    
+
     reference front()
     {
       return *data_;
     }
-    
+
     const_reference front() const
     {
       return *data_;
     }
-    
+
     reference back()
     {
       return data_[size_ - 1];
     }
-    
+
     const_reference back() const
     {
       return data_[size_ - 1];
@@ -479,7 +498,7 @@ namespace kstd
 
     // modifiers
     template<typename... Args>
-    reference emplace_back(Args&&... args)
+    reference emplace_back(Args&& ... args)
     {
       reserve(size_ + 1);
       traits::construct(allocator(), data_ + size_, std::forward<Args>(args)...);
@@ -508,12 +527,12 @@ namespace kstd
       --size_;
     }
 
-    template<typename... Args> 
-    iterator emplace(const_iterator pos, Args&&... args)
+    template<typename... Args>
+    iterator emplace(const_iterator pos, Args&& ... args)
     {
       size_type emplaced_pos = pos - begin();
       if (!shift_elements_right(emplaced_pos, 1) && emplaced_pos < size_)
-        *(data_ + emplaced_pos) = T(std::forward<Args>(args)...);
+        * (data_ + emplaced_pos) = T(std::forward<Args>(args)...);
       else
         traits::construct(allocator(), data_ + emplaced_pos, std::forward<Args>(args)...);
       ++size_;
@@ -627,8 +646,9 @@ namespace kstd
       capacity_ = new_cap;
       return true;
     }
-    using detail::allocator_base<Allocator>::allocator;
-    using typename detail::allocator_base<Allocator>::traits;
+
+    using vector::allocator_base::allocator;
+    using traits = std::allocator_traits<Allocator>;
 
     pointer data_ = nullptr;
     size_type size_ = 0;
