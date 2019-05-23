@@ -16,11 +16,11 @@ namespace kstd
     struct allocator_base
     {
     public:
-      allocator_base() noexcept(noexcept(T())) : allocator_(T()) {}
+      allocator_base() noexcept(noexcept(T())) : allocator_(T()) { }
 
-      allocator_base(const T& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) {}
+      allocator_base(const T& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) { }
 
-      allocator_base(T&& alloc) noexcept : allocator_(std::move(alloc)) {}
+      allocator_base(T&& alloc) noexcept : allocator_(std::move(alloc)) { }
 
       allocator_base operator=(const T& alloc)
       {
@@ -55,11 +55,11 @@ namespace kstd
     struct allocator_base<T, std::void_t<T>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
     {
     public:
-      allocator_base() noexcept(noexcept(T())) : T(T()) {}
+      allocator_base() noexcept(noexcept(T())) : T(T()) { }
 
-      allocator_base(const T& alloc) noexcept : T(traits::select_on_container_copy_construction(alloc)) {}
+      allocator_base(const T& alloc) noexcept : T(traits::select_on_container_copy_construction(alloc)) { }
 
-      allocator_base(T&& alloc) noexcept : T(std::move(alloc)) {}
+      allocator_base(T&& alloc) noexcept : T(std::move(alloc)) { }
 
       allocator_base operator=(const T& alloc)
       {
@@ -251,9 +251,9 @@ namespace kstd
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     // constructors
-    vector() noexcept(noexcept(Allocator())) : vector(Allocator()) {}
+    vector() noexcept(noexcept(Allocator())) : vector(Allocator()) { }
 
-    explicit vector(const Allocator& alloc) noexcept : vector::allocator_base(alloc) {}
+    explicit vector(const Allocator& alloc) noexcept : vector::allocator_base(alloc) { }
 
     explicit vector(size_type n, const Allocator& alloc = Allocator()) : vector::allocator_base(alloc)
     {
