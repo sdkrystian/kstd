@@ -397,7 +397,12 @@ namespace kstd
 
     void resize(size_type sz)
     {
-
+      if (sz == size_)
+        return;
+      if (sz < size_)
+      {
+        erase(data_ )
+      }
     }
 
     void resize(size_type sz, const T& value)
