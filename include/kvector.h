@@ -52,7 +52,7 @@ namespace kstd
     };
 
     template<typename T>
-    struct allocator_base<T, std::void_t<T>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
+    struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
     {
     public:
       allocator_base() noexcept(noexcept(T())) : T(T()) { }
