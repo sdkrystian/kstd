@@ -12,79 +12,80 @@ namespace kstd
   {
 #define ALLOW_UB
 
-    template<typename T, typename = void>
+    template<typename Allocator, typename = void>
     struct allocator_base
     {
     public:
-      allocator_base() noexcept(noexcept(T())) : allocator_(T()) { }
+      allocator_base() noexcept(noexcept(Allocator())) : allocator_(Allocator()) { }
 
-      allocator_base(const T& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) { }
+      allocator_base(const Allocator& alloc) noexcept : allocator_(traits::select_on_container_copy_construction(alloc)) { }
 
-      allocator_base(T&& alloc) noexcept : allocator_(std::move(alloc)) { }
+      allocator_base(Allocator&& alloc) noexcept : allocator_(std::move(alloc)) { }
 
-      allocator_base operator=(const T& alloc)
+      allocator_base operator=(const Allocator& alloc)
       {
         if constexpr (traits::propagate_on_container_copy_assignment::value)
           allocator() = alloc;
         return *this;
       }
 
-      allocator_base operator=(T&& alloc) noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
+      allocator_base operator=(Allocator&& alloc) noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
       {
         if constexpr (traits::propagate_on_container_move_assignment::value)
           allocator() = std::move(alloc);
         return *this;
       }
 
-      using traits = std::allocator_traits<T>;
+      using traits = std::allocator_traits<Allocator>;
     protected:
-      T& allocator() noexcept
+      Allocator& allocator() noexcept
       {
         return allocator_;
       }
 
-      const T& allocator() const noexcept
+      const Allocator& allocator() const noexcept
       {
         return allocator_;
       }
     private:
-      T allocator_;
+      Allocator allocator_;
     };
 
-    template<typename T>
-    struct allocator_base<T, std::enable_if_t<!std::is_final_v<T>>> : protected T // protected because intellisense thinks inherited members are still accessable >:(
+    template<typename Allocator>
+    struct allocator_base<Allocator, std::enable_if_t<!std::is_final_v<Allocator>>> : protected Allocator // protected because intellisense thinks inherited members are still accessable >:(
     {
     public:
-      allocator_base() noexcept(noexcept(T())) : T(T()) { }
+      allocator_base() noexcept(noexcept(Allocator())) : Allocator(Allocator()) { }
 
-      allocator_base(const T& alloc) noexcept : T(traits::select_on_container_copy_construction(alloc)) { }
+      allocator_base(const Allocator& alloc) noexcept : Allocator(traits::select_on_container_copy_construction(alloc)) { }
 
-      allocator_base(T&& alloc) noexcept : T(std::move(alloc)) { }
+      allocator_base(Allocator&& alloc) noexcept : Allocator(std::move(alloc)) { }
 
-      allocator_base operator=(const T& alloc)
+      allocator_base operator=(const Allocator& alloc)
       {
         if constexpr (traits::propagate_on_container_copy_assignment::value)
           allocator() = alloc;
         return *this;
       }
 
-      allocator_base operator=(T&& alloc) noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
+      allocator_base operator=(Allocator&& alloc) 
+        noexcept(traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value)
       {
         if constexpr (traits::propagate_on_container_move_assignment::value)
           allocator() = std::move(alloc);
         return *this;
       }
 
-      using traits = std::allocator_traits<T>;
+      using traits = std::allocator_traits<Allocator>;
     protected:
-      T& allocator() noexcept
+      Allocator& allocator() noexcept
       {
-        return *static_cast<T*>(this);
+        return *static_cast<Allocator*>(this);
       }
 
-      const T& allocator() const noexcept
+      const Allocator& allocator() const noexcept
       {
-        return *static_cast<T*>(this);
+        return *static_cast<Allocator*>(this);
       }
     };
 
@@ -313,6 +314,50 @@ namespace kstd
         detail::destroy_alloc(allocator(), data_, data_ + size_);
         traits::deallocate(allocator(), data_, capacity_);
       }
+    }
+
+    vector& operator=(const vector& other)
+    {
+      allocator() = other.allocator();
+      if (other.size_ > size_)
+      {
+        reserve(other.capacity_);
+        detail::copy_range_optimal(other.data_, other.data_ + size_, data_);
+        detail::uninitialized_copy_range_optimal_alloc(allocator(), other.data_ + size_, other.data_ + other.size_, data_ + size_);
+      }
+      else
+      {
+        detail::copy_range_optimal(other.data_, other.data_ + other.size_, data_);
+        detail::destroy_alloc(allocator(), data_ + other.size_, data_ + size_);
+      }
+      size_ = other.size_;
+    }
+
+    vector& operator=(vector&& other) noexcept(noexcept(allocator() = Allocator()))
+    {
+      allocator() = other.allocator();
+      data_ = other.data_;
+      size_ = other.size_;
+      capacity_ = other.capacity_;
+      other.data_ = nullptr;
+      other.size_ = 0;
+      other.capacity_ = 0;
+    }
+
+    vector& operator=(std::initializer_list<T> list)
+    {
+      if (list.size() > size_)
+      {
+        reserve(list.size());
+        detail::copy_range_optimal(list.begin(), list.begin() + size_, data_);
+        detail::uninitialized_copy_range_optimal_alloc(allocator(), list.begin() + size_, list.begin() + list.size(), data_ + size_);
+      }
+      else
+      {
+        detail::copy_range_optimal(list.begin(), list.begin() + list.size(), data_);
+        detail::destroy_alloc(allocator(), data_ + list.size(), data_ + size_);
+      }
+      size_ = list.size();
     }
 
     Allocator get_allocator() const noexcept
